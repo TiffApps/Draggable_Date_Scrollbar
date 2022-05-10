@@ -32,7 +32,7 @@ class DraggableDateScrollbar extends StatefulWidget {
   /// The background color of the label and thumb
   final Color backgroundColor;
 
-  /// The color of the arrow indicators on the thumb
+  /// The color of the arrow indicators and the thin border on the thumb
   final Color arrowColor;
 
   /// The amount of padding that should surround the thumb
@@ -56,8 +56,12 @@ class DraggableDateScrollbar extends StatefulWidget {
   /// Determines scrollThumb displaying. If you draw own ScrollThumb and it is true you just don't need to use animation parameters in [scrollThumbBuilder]
   final bool alwaysVisibleScrollThumb;
 
-  final Function() onReversed;
+  /// Updates [isReversed] to reverse the date label when it comes too close to the left side.
+  final Function()? onReversed;
 
+  /// Defines the direction of the date label.
+  /// false = on the right of the scrollThumb
+  /// true = on the left of the scrollThumb
   final bool isReversed;
 
   static List<Widget> _widgets = [];
@@ -76,7 +80,7 @@ class DraggableDateScrollbar extends StatefulWidget {
     this.scrollbarTimeToFade = const Duration(milliseconds: 600),
     this.labelDateBuilder,
     this.labelConstraints,
-    required this.onReversed,
+    this.onReversed,
     this.isReversed = false,
   })  : assert(child.scrollDirection == Axis.vertical),
         super(key: key);
@@ -206,10 +210,9 @@ class ScrollLabel extends StatelessWidget {
     return FadeTransition(
       opacity: animation!,
       child: Container(
-        // margin: const EdgeInsets.only(right: 12.0, left: 12.0),
+        margin: const EdgeInsets.only(right: 12.0, left: 12.0),
         child: Material(
-          // shape: Border.all(width: 0.1, color: borderColor),
-          borderRadius: const BorderRadius.all(Radius.circular(500.0)),
+          borderRadius: const BorderRadius.all(Radius.circular(50.0)),
           elevation: 4.0,
           color: backgroundColor,
           child: Padding(
@@ -328,6 +331,25 @@ class _DraggableDateScrollbarState extends State<DraggableDateScrollbar>
             children: <Widget>[
               RepaintBoundary(
                 child: widget.child,
+              ),
+              RepaintBoundary(
+                child: _isDragInProcess
+                    ? Padding(
+                        padding: const EdgeInsets.only(left: 30),
+                        child: Column(
+                          children: const [
+                            // TODO: Replace the Spacers by an actual way to calculate the distance between them from number of pictures
+                            Spacer(flex: 1),
+                            YearLabel(year: "2022"),
+                            Spacer(flex: 1),
+                            YearLabel(year: "2021"),
+                            Spacer(flex: 3),
+                            YearLabel(year: "2015"),
+                            Spacer(flex: 1),
+                          ],
+                        ),
+                      )
+                    : Container(),
               ),
               RepaintBoundary(
                 child: Draggable(
@@ -453,15 +475,19 @@ class _DraggableDateScrollbarState extends State<DraggableDateScrollbar>
           _barOffsetX = barMaxXExtent;
         }
 
-        if (_barOffsetX > context.size!.width / 2 && isOnLeftSide == false) {
-          widget.onReversed.call();
+        if (widget.onReversed != null &&
+            isOnLeftSide == false &&
+            _barOffsetX > context.size!.width / 2) {
+          widget.onReversed!.call();
           setState(() {
             isOnLeftSide = true;
           });
         }
 
-        if (_barOffsetX < context.size!.width / 2 && isOnLeftSide == true) {
-          widget.onReversed.call();
+        if (widget.onReversed != null &&
+            isOnLeftSide == true &&
+            _barOffsetX < context.size!.width / 2) {
+          widget.onReversed!.call();
           setState(() {
             isOnLeftSide = false;
           });
@@ -483,10 +509,6 @@ class _DraggableDateScrollbarState extends State<DraggableDateScrollbar>
   }
 
   void _onDragEnd(DraggableDetails details) {
-    print("details: " +
-        details.offset.dx.toString() +
-        " & width: " +
-        (MediaQuery.of(context).size.width / 2).toString());
     if (details.offset.dx.abs() < MediaQuery.of(context).size.width / 2 &&
         _barOffsetX < MediaQuery.of(context).size.width / 2) {
       _barOffsetX = barMinXExtent; // move to right side
@@ -494,10 +516,6 @@ class _DraggableDateScrollbarState extends State<DraggableDateScrollbar>
       _barOffsetX = MediaQuery.of(context).size.width -
           (widget.heightScrollThumb + barMinXExtent); // move to left side
     }
-    print("offset: " +
-        _barOffsetX.toString() +
-        " scrollThumb: " +
-        widget.heightScrollThumb.toString());
     _fadeoutTimer = Timer(widget.scrollbarTimeToFade, () {
       _thumbAnimationController.reverse();
       _labelAnimationController.reverse();
@@ -506,6 +524,23 @@ class _DraggableDateScrollbarState extends State<DraggableDateScrollbar>
     setState(() {
       _isDragInProcess = false;
     });
+  }
+}
+
+class YearLabel extends StatelessWidget {
+  final String year;
+  const YearLabel({Key? key, required this.year}) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 5, horizontal: 12),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(15),
+      ),
+      child: Text(year),
+    );
   }
 }
 

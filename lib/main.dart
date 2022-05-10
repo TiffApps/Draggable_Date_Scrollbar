@@ -1,5 +1,10 @@
+// ignore_for_file: avoid_print
+
 import 'package:draggable_date_scrollbar/draggable_date_scrollbar.dart';
+import 'package:draggable_date_scrollbar/utils.dart';
+import 'package:exif/exif.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const MyApp());
@@ -13,6 +18,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Draggable Date Scrollbar Demo',
       theme: ThemeData(
+        brightness: Brightness.dark,
         primarySwatch: Colors.blue,
       ),
       home: const MyHomePage(),
@@ -29,6 +35,7 @@ class MyHomePage extends StatefulWidget {
 
 class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   late ScrollController controller;
+  List<DateTime> listDates = [];
   bool isReversed = false;
   static int itemCount = 85;
 
@@ -42,6 +49,52 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
   void dispose() {
     controller.dispose();
     super.dispose();
+  }
+
+  printExifOf(List<int> fileBytes) async {
+    final data = await readExifFromBytes(fileBytes);
+
+    if (data.isEmpty) {
+      print("No EXIF information found");
+      return;
+    }
+    if (data.containsKey('JPEGThumbnail')) {
+      print('File has JPEG thumbnail');
+      data.remove('JPEGThumbnail');
+    }
+    if (data.containsKey('TIFFThumbnail')) {
+      print('File has TIFF thumbnail');
+      data.remove('TIFFThumbnail');
+    }
+
+    for (final entry in data.entries) {
+      print("${entry.key}: ${entry.value}");
+    }
+  }
+
+  Future<Widget> _getImages(int index) async {
+    final imageNetwork =
+        Image.network('https://picsum.photos/250?image=$index');
+    http.Response response =
+        await http.get(Uri.parse('https://picsum.photos/250?image=$index'));
+    // printExifOf(response.bodyBytes);
+    final data = await readExifFromBytes(response.bodyBytes);
+    if (data.isEmpty) {
+      print("No EXIF information found");
+      listDates.add(RandomDate.withRange(2008, 2022).random());
+      return imageNetwork;
+    }
+
+    final datetime = data['EXIF DateTimeOriginal']?.toString();
+    if (datetime == null) {
+      print("datetime information not found");
+      listDates.add(RandomDate.withRange(2008, 2022).random());
+      return imageNetwork;
+    }
+
+    print("datetime = $datetime");
+    listDates.add(DateTime.tryParse(datetime) ?? DateTime(1900, 1, 1));
+    return imageNetwork;
   }
 
   @override
@@ -60,7 +113,7 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
               heightScrollThumb: 60,
               isReversed: isReversed,
               onReversed: () => setState(() => isReversed = !isReversed),
-              // TODO: Replace this double offset by a DateTime metadataDate when we'll have metadata on pictures?
+              // TODO: Replace this double offset by a DateTime metadataDate when we'll have metadata on pictures? We have [listDates] in the meanwhile
               labelDateBuilder: (offset) {
                 final DateTime currentDate = controller.hasClients
                     ? offset >= 0 && offset < 3000
@@ -78,8 +131,16 @@ class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
                 itemCount: itemCount,
                 itemBuilder: (context, index) => Padding(
                   padding: const EdgeInsets.all(10),
-                  child:
-                      Image.network('https://picsum.photos/250?image=$index'),
+                  child: FutureBuilder(
+                    future: _getImages(index),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        return snapshot.data as Image;
+                      } else {
+                        return const Center(child: CircularProgressIndicator());
+                      }
+                    },
+                  ),
                 ),
                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                   crossAxisCount: constraints.maxWidth > 700 ? 4 : 2,
