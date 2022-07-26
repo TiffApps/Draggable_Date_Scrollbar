@@ -7,3 +7,6 @@ List of known issues:
  - Overflow of the date label when dragged on the left side
  - Sometimes unable to drag the thumb from the left back to the right
  - Unable to link with an actual stream of DateTime values from the scrollview yet
+ 
+ # Credits
+ Based on the [draggable_scrollbar](https://pub.dev/packages/draggable_scrollbar) package.
